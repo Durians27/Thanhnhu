@@ -6,143 +6,149 @@ from datetime import datetime, timedelta
 from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+import streamlit as st
+
+st.set_page_config(page_title="Sales Data Analysis & Forecasting", layout="wide")
+st.title("📊 Sales Data Analysis & Forecasting (ARIMA)")
 
 # Step 1: Data Collection/Generation
-# Generate synthetic monthly sales data over 2 years (24 months) with an upward trend and random noise.
-# Introduce null values and duplicates for preprocessing demonstration.
 np.random.seed(42)
 start_date = datetime(2023, 1, 1)
-dates = [start_date + timedelta(days=30*i) for i in range(24)]  # 2 years monthly
-sales = np.random.normal(10000, 2000, 24) + np.arange(24)*200  # Trend + noise
+dates = [start_date + timedelta(days=30*i) for i in range(24)]
+sales = np.random.normal(10000, 2000, 24) + np.arange(24)*200
 
-# Introduce null values (simulate missing data)
-sales[3] = np.nan  # Missing value in April 2023
-sales[10] = np.nan  # Missing value in November 2023
+# Introduce null values
+sales[3] = np.nan
+sales[10] = np.nan
 
 # Create DataFrame
 df = pd.DataFrame({'Date': dates, 'Sales': sales})
 df.set_index('Date', inplace=True)
 
-# Add duplicate rows (simulate data entry error)
-duplicate_rows = df.iloc[[0, 5]]  # Duplicate January and June 2023
+# Add duplicate rows
+duplicate_rows = df.iloc[[0, 5]]
 df = pd.concat([df, duplicate_rows]).sort_index()
 
-# Synthetic category and region data for visualizations
+# Synthetic category & region data
 categories = ['Electronics', 'Clothing', 'Books', 'Home']
 regions = ['North', 'South', 'East', 'West']
-category_sales = np.random.normal(5000, 1000, (24, 4))  # Monthly sales per category
-region_sales = np.random.normal(3000, 500, (24, 4))  # Monthly sales per region
+category_sales = np.random.normal(5000, 1000, (24, 4))
+region_sales = np.random.normal(3000, 500, (24, 4))
 category_df = pd.DataFrame(category_sales, index=dates, columns=categories)
 region_df = pd.DataFrame(region_sales, index=dates, columns=regions)
 
 # Step 2: Data Preprocessing
-# 2.1: Handling Null (Missing) Values
-print("Checking for null values:")
-missing = df.isnull().sum()
-print(missing)
+st.header("📌 Data Preprocessing")
 
-# Reason for handling nulls: Missing values can distort statistical analysis and reduce model accuracy.
-# For time-series data, forward-fill is appropriate to maintain continuity.
+st.subheader("Missing Values Before:")
+st.write(df.isnull().sum())
+
+# Fill nulls
 df['Sales'] = df['Sales'].fillna(method='ffill')
-print("\nAfter handling nulls:")
-print(df.isnull().sum())
 
-# 2.2: Removing Duplicate Records
-# Reason for removal: Duplicates bias results by over-representing certain observations, leading to overfitting or skewed forecasts.
-print("\nChecking for duplicates:")
-duplicates = df.duplicated().sum()
-print(f"Number of duplicate rows: {duplicates}")
+st.subheader("Missing Values After:")
+st.write(df.isnull().sum())
+
+# Remove duplicates
+st.write(f"Number of duplicate rows before: {df.duplicated().sum()}")
 df = df.drop_duplicates()
-print(f"Number of rows after removing duplicates: {len(df)}")
+st.write(f"Number of rows after removing duplicates: {len(df)}")
 
-# 2.3: Data Normalization (Standardization)
-# Reason for standardization: Machine learning models (e.g., ARIMA, neural networks) perform better when features are on a similar scale, preventing large values from dominating.
+# Standardization
 scaler = StandardScaler()
 df['Sales_Standardized'] = scaler.fit_transform(df[['Sales']])
-print("\nData after standardization (first 5 rows):")
-print(df.head())
 
-# 2.4: Split into Train and Test
+st.subheader("Data after standardization:")
+st.dataframe(df.head())
+
+# Train-Test Split
 train = df.iloc[:-6][['Sales', 'Sales_Standardized']]
 test = df.iloc[-6:][['Sales', 'Sales_Standardized']]
-print("\nTrain set size:", len(train))
-print("Test set size:", len(test))
 
-# Save preprocessed data for further steps
+st.write(f"Train set size: {len(train)}, Test set size: {len(test)}")
+
+# Save preprocessed
 df.to_csv('preprocessed_sales_data.csv')
 
-# Step 3: Data Analysis and Visualization (5 Visualizations)
-# Statistical summary
-print("\nSales Summary:")
-print(df['Sales'].describe())
-print("\nLast Month Category Sales:")
-print(category_df.iloc[-1])
-print("\nLast Month Regional Sales:")
-print(region_df.iloc[-1])
+# Step 3: Data Analysis & Visualization
+st.header("📈 Data Analysis & Visualization")
+
+st.subheader("Sales Summary")
+st.write(df['Sales'].describe())
+
+st.subheader("Last Month Category Sales")
+st.write(category_df.iloc[-1])
+
+st.subheader("Last Month Regional Sales")
+st.write(region_df.iloc[-1])
 
 # Visualization 1: Monthly Sales Trend
-plt.figure(figsize=(10, 5))
-plt.plot(df.index, df['Sales'], marker='o', label='Actual Sales')
-plt.title('Monthly Sales Trend')
-plt.xlabel('Date')
-plt.ylabel('Sales ($)')
-plt.legend()
-plt.grid(True)
-plt.show()  # In Colab/Jupyter, displays the plot
+st.subheader("Monthly Sales Trend")
+fig1, ax1 = plt.subplots(figsize=(10, 5))
+ax1.plot(df.index, df['Sales'], marker='o', label='Actual Sales')
+ax1.set_title('Monthly Sales Trend')
+ax1.set_xlabel('Date')
+ax1.set_ylabel('Sales ($)')
+ax1.grid(True)
+ax1.legend()
+st.pyplot(fig1)
 
-# Visualization 2: Sales by Product Category (Stacked Area)
-plt.figure(figsize=(10, 5))
-plt.stackplot(category_df.index, category_df.T, labels=categories, alpha=0.6)
-plt.title('Sales by Product Category')
-plt.xlabel('Date')
-plt.ylabel('Sales ($)')
-plt.legend(loc='upper left')
-plt.grid(True)
-plt.show()
+# Visualization 2: Sales by Product Category
+st.subheader("Sales by Product Category")
+fig2, ax2 = plt.subplots(figsize=(10, 5))
+ax2.stackplot(category_df.index, category_df.T, labels=categories, alpha=0.6)
+ax2.set_title('Sales by Product Category')
+ax2.set_xlabel('Date')
+ax2.set_ylabel('Sales ($)')
+ax2.legend(loc='upper left')
+ax2.grid(True)
+st.pyplot(fig2)
 
-# Visualization 3: Regional Sales Share (Pie Chart for Last Month)
-last_month = region_df.iloc[-1]
-plt.figure(figsize=(8, 8))
-plt.pie(last_month, labels=regions, autopct='%1.1f%%', startangle=90)
-plt.title('Regional Sales Share (Last Month)')
-plt.show()
+# Visualization 3: Regional Sales Share (Pie Chart)
+st.subheader("Regional Sales Share (Last Month)")
+fig3, ax3 = plt.subplots(figsize=(8, 8))
+ax3.pie(region_df.iloc[-1], labels=regions, autopct='%1.1f%%', startangle=90)
+ax3.set_title('Regional Sales Share (Last Month)')
+st.pyplot(fig3)
 
 # Step 4: Model Training
+st.header("🤖 Model Training (ARIMA)")
 model = ARIMA(train['Sales'], order=(1,1,1))
 model_fit = model.fit()
-print("\nARIMA Model Summary:")
-print(model_fit.summary())
+st.text(model_fit.summary())
 
 # Step 5: Model Evaluation and Forecasting
 pred = model_fit.forecast(steps=6)
 mae = mean_absolute_error(test['Sales'], pred)
 rmse = np.sqrt(mean_squared_error(test['Sales'], pred))
-print(f"\nMAE: {mae}, RMSE: {rmse}")
+st.write(f"MAE: {mae:.2f}, RMSE: {rmse:.2f}")
 
 # Forecast next 6 months
 forecast_steps = 6
 forecast = model_fit.forecast(steps=forecast_steps)
 forecast_dates = [df.index[-1] + timedelta(days=30*(i+1)) for i in range(forecast_steps)]
 forecast_df = pd.DataFrame({'Date': forecast_dates, 'Forecasted Sales': forecast})
-print("\nForecasted Sales:")
-print(forecast_df)
+st.subheader("Forecasted Sales for Next 6 Months")
+st.dataframe(forecast_df)
 
 # Visualization 4: Actual vs. Forecasted Sales
-plt.figure(figsize=(10, 5))
-plt.plot(test.index, test['Sales'], marker='o', label='Actual Sales')
-plt.plot(test.index, pred, marker='x', label='Forecasted Sales', linestyle='--')
-plt.title('Actual vs. Forecasted Sales')
-plt.xlabel('Date')
-plt.ylabel('Sales ($)')
-plt.legend()
-plt.grid(True)
-plt.show()
+st.subheader("Actual vs. Forecasted Sales")
+fig4, ax4 = plt.subplots(figsize=(10, 5))
+ax4.plot(test.index, test['Sales'], marker='o', label='Actual Sales')
+ax4.plot(test.index, pred, marker='x', label='Forecasted Sales', linestyle='--')
+ax4.set_title('Actual vs. Forecasted Sales')
+ax4.set_xlabel('Date')
+ax4.set_ylabel('Sales ($)')
+ax4.legend()
+ax4.grid(True)
+st.pyplot(fig4)
 
-# Visualization 5: Sales Distribution (Histogram with KDE)
-plt.figure(figsize=(10, 5))
-sns.histplot(df['Sales'], kde=True, bins=10)
-plt.title('Sales Distribution')
-plt.xlabel('Sales ($)')
-plt.ylabel('Frequency')
-plt.grid(True)
-plt.show()
+# Visualization 5: Sales Distribution
+st.subheader("Sales Distribution")
+fig5, ax5 = plt.subplots(figsize=(10, 5))
+sns.histplot(df['Sales'], kde=True, bins=10, ax=ax5)
+ax5.set_title('Sales Distribution')
+ax5.set_xlabel('Sales ($)')
+ax5.set_ylabel('Frequency')
+ax5.grid(True)
+st.pyplot(fig5)
